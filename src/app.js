@@ -157,7 +157,7 @@ function createApp(cfg, deps = {}) {
     const connections = {};
     for (const p of providers.list()) {
       const c = loc.connections && loc.connections[p.name];
-      connections[p.name] = { label: p.label, configured: p.configured(), connected: !!c, account: c ? { email: c.account.email, name: c.account.name } : null, broken: c ? c.broken || null : null };
+      connections[p.name] = { label: p.label, comingSoon: p.name === 'teams' && !cfg.teamsEnabled, configured: p.configured(), connected: !!c, account: c ? { email: c.account.email, name: c.account.name } : null, broken: c ? c.broken || null : null };
     }
     res.json({ settings: await settings.get(req.loc), connections, logs: (await store.recentLogs(req.loc, 30)).map((l) => Object.assign(l, { detail: crmSafe(l.detail) })), notesAi: notes.enabled });
   }));

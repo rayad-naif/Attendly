@@ -90,9 +90,10 @@ function layout(cfg, { title, description, path, body }) {
 
 /* ---------------- Home ---------------- */
 function home(cfg) {
+  const T = cfg.teamsEnabled;
   const install = cfg.brand.marketplaceUrl || '/docs#install';
   const features = [
-    ['✓', 'Showed or No-show, set for you', 'After every Zoom, Teams or Google Meet appointment, the appointment status is updated in HighLevel, so your no-show and follow-up workflows fire on time.'],
+    ['✓', 'Showed or No-show, set for you', 'After every ' + (T ? 'Zoom, Teams or Google Meet' : 'Zoom or Google Meet') + ' appointment, the appointment status is updated in HighLevel, so your no-show and follow-up workflows fire on time.'],
     ['∑', 'Built for class bookings', 'Group sessions get a decision for every booked contact, not one for the whole class. Rejoins are added up and late joiners are tagged.'],
     ['✎', 'Meeting notes on the contact', 'A short summary, decisions and action items are saved to each attendee\'s Notes, made from the platform transcript or its own AI summary.'],
     ['⚑', 'Asks instead of guessing', 'When a participant can\'t be matched with confidence, a HighLevel task is created for your team. Statuses you set by hand are never overwritten.'],
@@ -101,12 +102,12 @@ function home(cfg) {
   ];
   return layout(cfg, {
     title: cfg.appName + ': automatic meeting attendance for HighLevel',
-    description: 'Automatically mark HighLevel appointments held on Zoom, Microsoft Teams and Google Meet as Showed or No-show, and save meeting notes to each contact.',
+    description: 'Automatically mark HighLevel appointments held on ' + (T ? 'Zoom, Microsoft Teams and Google Meet' : 'Zoom and Google Meet') + ' as Showed or No-show, and save meeting notes to each contact.',
     path: '/',
     body: `
 <section class="hero"><div class="container hero-grid">
   <div>
-    <p class="eyebrow">For HighLevel · Zoom · Teams · Google Meet</p>
+    <p class="eyebrow">For HighLevel · Zoom · Google Meet${T ? ' · Teams' : ' · Teams soon'}</p>
     <h1 class="hero-title">Know who showed up. <span class="grad">Automatically.</span></h1>
     <p class="lead">${esc(cfg.appName)} checks every online appointment after it ends, marks each attendee <b>Showed</b> or <b>No-show</b> in HighLevel, and saves the meeting notes to their contact. No API keys, no spreadsheets.</p>
     <div class="actions"><a class="button primary" href="${esc(install)}">Install on HighLevel</a><a class="button ghost" href="/docs">Read the docs</a></div>
@@ -135,16 +136,16 @@ function home(cfg) {
   <p class="eyebrow">How it works</p><h2 class="section-title">Set up in three steps</h2>
   <div class="grid3">
     <article class="card step"><div class="step-n">STEP 1</div><h3>Install the app</h3><p>Install ${esc(cfg.appName)} from the HighLevel Marketplace. Access to the sub-account is granted automatically.</p></article>
-    <article class="card step"><div class="step-n">STEP 2</div><h3>Connect your meeting account</h3><p>Open the app in the sidebar and click <b>Connect</b> for Zoom, Microsoft Teams or Google Meet. Sign in and allow access.</p></article>
+    <article class="card step"><div class="step-n">STEP 2</div><h3>Connect your meeting account</h3><p>Open the app in the sidebar and click <b>Connect</b> for ${T ? 'Zoom, Microsoft Teams or Google Meet' : 'Zoom or Google Meet'}. Sign in and allow access.</p></article>
     <article class="card step"><div class="step-n">STEP 3</div><h3>Run meetings as usual</h3><p>After each appointment, statuses, tags, fields and notes appear in HighLevel. Your existing workflows take it from there.</p></article>
   </div>
-  <div class="platforms" style="margin-top:1.5rem" aria-label="Supported platforms"><span>Zoom</span><span>Microsoft Teams</span><span>Google Meet</span></div>
+  <div class="platforms" style="margin-top:1.5rem" aria-label="Supported platforms"><span>Zoom</span><span>Google Meet</span><span>Microsoft Teams${T ? '' : ' · coming soon'}</span></div>
 </div></section>
 
 <section class="section"><div class="container" style="max-width:820px">
   <p class="eyebrow">Questions</p><h2 class="section-title">Frequently asked</h2>
-  <details><summary>Do my clients need to enter any API keys?</summary><p>No. Installing the app connects the HighLevel sub-account, and Zoom, Teams or Meet are connected with a Connect button and a normal sign-in.</p></details>
-  <details><summary>Which meetings are checked?</summary><p>Appointments whose meeting location is a Zoom, Microsoft Teams or Google Meet link hosted by the connected account. In-person appointments are ignored.</p></details>
+  <details><summary>Do my clients need to enter any API keys?</summary><p>No. Installing the app connects the HighLevel sub-account, and ${T ? 'Zoom, Teams or Meet are' : 'Zoom or Google Meet is'} connected with a Connect button and a normal sign-in.</p></details>
+  <details><summary>Which meetings are checked?</summary><p>Appointments whose meeting location is a ${T ? 'Zoom, Microsoft Teams or Google Meet' : 'Zoom or Google Meet'} link hosted by the connected account. In-person appointments are ignored.${T ? '' : ' Microsoft Teams support is coming soon.'}</p></details>
   <details><summary>What happens when it isn't sure?</summary><p>It leaves the status alone and creates a HighLevel task for the appointment owner, listing who joined and for how long.</p></details>
   <details><summary>Will it change a status my team already set?</summary><p>Never. Only appointments still marked New or Confirmed are updated.</p></details>
   <details><summary>Are recordings or transcripts stored?</summary><p>No. Transcripts are read once to write the note and then discarded. See the <a href="/privacy">Privacy Policy</a>.</p></details>
@@ -154,16 +155,17 @@ function home(cfg) {
 
 /* ---------------- Docs ---------------- */
 function docs(cfg) {
+  const T = cfg.teamsEnabled;
   const toc = [['install', 'Install'], ['connect', 'Connect a platform'], ['requirements', 'Requirements'], ['how', 'How attendance is decided'], ['rules', 'Rules and settings'], ['classes', 'Class bookings'], ['notes', 'Meeting notes'], ['fields', 'Fields and tags'], ['review', 'Review tasks'], ['troubleshooting', 'Troubleshooting']];
   return layout(cfg, {
     title: 'Docs · ' + cfg.appName,
-    description: 'How to install and use ' + cfg.appName + ' with HighLevel, Zoom, Microsoft Teams and Google Meet.',
+    description: 'How to install and use ' + cfg.appName + ' with HighLevel, Zoom and Google Meet.',
     path: '/docs',
     body: `<section class="section"><div class="container doc">
 <nav class="toc" aria-label="On this page">${toc.map(([id, t]) => `<a href="#${id}">${t}</a>`).join('')}</nav>
 <article class="prose">
 <p class="eyebrow">Documentation</p><h1>Using ${esc(cfg.appName)}</h1>
-<p>${esc(cfg.appName)} marks HighLevel appointments held on Zoom, Microsoft Teams and Google Meet as Showed or No-show, per attendee, and saves meeting notes to each contact.</p>
+<p>${esc(cfg.appName)} marks HighLevel appointments held on ${T ? 'Zoom, Microsoft Teams and Google Meet' : 'Zoom and Google Meet'} as Showed or No-show, per attendee, and saves meeting notes to each contact.${T ? '' : ' Microsoft Teams support is coming soon.'}</p>
 
 <h2 id="install">Install</h2>
 <ol><li>Open the HighLevel Marketplace and find <b>${esc(cfg.appName)}</b>${cfg.brand.marketplaceUrl ? ` (<a href="${esc(cfg.brand.marketplaceUrl)}">direct link</a>)` : ''}.</li>
@@ -173,17 +175,17 @@ function docs(cfg) {
 
 <h2 id="connect">Connect a platform</h2>
 <ol><li>In the sub-account, open <b>${esc(cfg.appName)}</b> from the left sidebar. You are signed in automatically.</li>
-<li>Under <b>Meeting platforms</b>, click <b>Connect</b> next to Zoom, Microsoft Teams or Google Meet.</li>
+<li>Under <b>Meeting platforms</b>, click <b>Connect</b> next to ${T ? 'Zoom, Microsoft Teams or Google Meet' : 'Zoom or Google Meet'}.</li>
 <li>Sign in with the account your HighLevel calendars use to create meetings, and click <b>Allow</b>.</li></ol>
 <p class="note">Connect the account that <b>hosts</b> the meetings. ${esc(cfg.appName)} can only read attendance for meetings that account organizes. You can connect all three platforms.</p>
 
 <h2 id="requirements">Requirements</h2>
 <table><thead><tr><th>Platform</th><th>What you need</th></tr></thead><tbody>
 <tr><td>Zoom</td><td>Any Zoom plan, free included, for attendance. For AI notes, a paid plan with cloud recording transcripts or AI Companion summaries; free accounts get attendance-only notes.</td></tr>
-<tr><td>Microsoft Teams</td><td>A Microsoft 365 work or school account. Your IT admin may need to approve the app once. Turn on transcription for AI notes. Personal Teams (teams.live.com) is not supported.</td></tr>
+<tr><td>Microsoft Teams</td><td>${T ? 'A Microsoft 365 work or school account. Your IT admin may need to approve the app once. Turn on transcription for AI notes. Personal Teams (teams.live.com) is not supported.' : '<b>Coming soon.</b>'}</td></tr>
 <tr><td>Google Meet</td><td>A Google Workspace account. Turn on transcripts for AI notes. Meet does not share participant emails, so matching uses names.</td></tr>
 </tbody></table>
-<p>The appointment's meeting location must be the Zoom, Teams or Meet link. HighLevel's own calendar integrations do this automatically.</p>
+<p>The appointment's meeting location must be the ${T ? 'Zoom, Teams or Meet' : 'Zoom or Google Meet'} link. HighLevel's own calendar integrations do this automatically.</p>
 
 <h2 id="how">How attendance is decided</h2>
 <p>About 10 minutes after an appointment ends, ${esc(cfg.appName)} reads the participant list from the platform and matches each person to the booked contact:</p>
@@ -233,8 +235,8 @@ function docs(cfg) {
 <tr><td>Nothing happens after meetings</td><td>Check that the platform shows <b>Connected</b> on the app page, and that the appointment's location is the meeting link.</td></tr>
 <tr><td>"Reconnect" next to a platform</td><td>The sign-in expired or was revoked. Click <b>Reconnect</b> and sign in again.</td></tr>
 <tr><td>Many review tasks</td><td>Ask clients to join with the name or email they booked with, or lower the confidence setting.</td></tr>
-<tr><td>Notes contain attendance only</td><td>Turn on cloud recording transcripts (Zoom) or transcription (Teams, Meet).</td></tr>
-<tr><td>"Meeting not found"</td><td>The connected account must be the meeting's host. Personal Teams meetings cannot be checked.</td></tr>
+<tr><td>Notes contain attendance only</td><td>Turn on cloud recording transcripts (Zoom) or transcription (${T ? 'Teams, Meet' : 'Meet'}).</td></tr>
+<tr><td>"Meeting not found"</td><td>The connected account must be the meeting's host.${T ? ' Personal Teams meetings cannot be checked.' : ''}</td></tr>
 </tbody></table>
 <p>Still stuck? <a href="/support">Contact support</a>.</p>
 </article></div></section>`
@@ -252,7 +254,7 @@ function support(cfg) {
 <div class="prose"><p class="eyebrow">Support</p><h1>We're here to help</h1>
 <p>Questions, a meeting that was marked wrong, or a feature you'd like? Email us and we'll get back to you.</p>
 <h2>To help us answer quickly, include</h2>
-<ul><li>Your HighLevel sub-account name or ID</li><li>The platform (Zoom, Teams or Meet)</li><li>The appointment date and time, and what you expected to happen</li><li>A screenshot of the app's <b>Recent activity</b> list, if relevant</li></ul>
+<ul><li>Your HighLevel sub-account name or ID</li><li>The platform (Zoom or Google Meet${cfg.teamsEnabled ? ', or Teams' : ''})</li><li>The appointment date and time, and what you expected to happen</li><li>A screenshot of the app's <b>Recent activity</b> list, if relevant</li></ul>
 <p>Many answers are already in the <a href="/docs">documentation</a>.</p></div>
 <aside class="card"><p class="eyebrow">Email</p><p class="mail"><a href="mailto:${esc(email)}?subject=${encodeURIComponent(cfg.appName + ' support')}">${esc(email)}</a></p>
 <p class="muted">Please don't send passwords or API keys. We will never ask for them.</p>

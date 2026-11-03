@@ -235,6 +235,11 @@ test('settings API requires a signed session', async (t) => {
   const s = await r.json();
   assert.equal(s.connections.zoom.connected, true);
   assert.equal(s.connections.teams.configured, false);
+  assert.equal(s.connections.teams.comingSoon, true);
+  assert.deepEqual(Object.keys(s.connections), ['zoom', 'meet', 'teams']);
+  assert.equal((await fetch(env.base + '/app/api/connect/teams', { method: 'POST', headers: { Authorization: 'Bearer ' + token } })).status, 400);
+  assert.match(await (await fetch(env.base + '/')).text(), /Microsoft Teams · coming soon/);
+  assert.match(await (await fetch(env.base + '/docs')).text(), /<b>Coming soon\.<\/b>/);
   assert.equal(s.settings.mode, 'auto');
   const c = await fetch(env.base + '/app/api/connect/zoom', { method: 'POST', headers: { Authorization: 'Bearer ' + token } }).then((x) => x.json());
   assert.match(c.url, /^https:\/\/zoom\.us\/oauth\/authorize\?/);
