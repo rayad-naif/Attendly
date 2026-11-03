@@ -4,5 +4,5 @@
     "api/index.js": { "maxDuration": 300, "includeFiles": "src/**" }
   },
   "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }],
-  "crons": [{ "path": "/api/cron/run", "schedule": "*/5 * * * *" }]
+  "crons": [{ "path": "/api/cron/run", "schedule": "17 3 * * *" }]
 }

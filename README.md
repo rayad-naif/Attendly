@@ -100,7 +100,12 @@ Create an API key in Google AI Studio and set `GEMINI_API_KEY`. The default mode
 
 1. Import this repository as a new Vercel project (default root directory).
 2. Set the environment variables from `.env.example`. `MONGODB_URI`, `SESSION_SECRET` and `CRON_SECRET` are required.
-3. `vercel.json` runs `/api/cron/run` every 5 minutes. Vercel's Hobby plan allows only daily crons, so use Pro, or call `GET /cron/run?key=<CRON_SECRET>` from any external scheduler every 5 minutes.
+3. Meetings are checked by calling `/cron/run` every 5 minutes. `vercel.json` only runs it once a day, as a backup, because Vercel's Hobby plan allows daily crons only. Set up the 5-minute call with a free scheduler such as [cron-job.org](https://cron-job.org):
+    - URL: `https://<your-domain>/cron/run`
+    - Schedule: every 5 minutes
+    - Header: `Authorization: Bearer <CRON_SECRET>`. If the scheduler can't send headers, use `https://<your-domain>/cron/run?key=<CRON_SECRET>` instead.
+
+    On Vercel Pro you can skip the external scheduler and change the `vercel.json` schedule to `*/5 * * * *`.
 4. On a normal server, run `npm start`. It processes due jobs every minute on its own.
 
 ## Development
