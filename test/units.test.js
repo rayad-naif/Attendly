@@ -95,3 +95,26 @@ test('GHL webhook signatures are verified with RSA-SHA256', () => {
   assert.equal(ghl.verifyWebhook(Buffer.from(body.toString() + ' '), { 'x-wh-signature': sig }), false);
   assert.equal(ghl.verifyWebhook(body, {}), false);
 });
+
+
+test('Zoom live events rebuild sessions, rejoins and the host', () => {
+  const { liveRecord, liveParticipants } = require('../src/providers/zoom');
+  const ev = (event, participant, extra = {}) => ({ event, event_ts: 1, payload: { object: Object.assign({ id: 999, uuid: 'u1', host_id: 'H', start_time: '2026-11-02T10:00:00Z', participant }, extra) } });
+  const recs = [
+    liveRecord(ev('meeting.participant_joined', { id: 'H', user_name: 'Host', join_time: '2026-11-02T10:00:00Z' })),
+    liveRecord(ev('meeting.participant_joined', { user_name: 'Ana', email: 'ANA@x.com', join_time: '2026-11-02T10:05:00Z' })),
+    liveRecord(ev('meeting.participant_left', { user_name: 'Ana', email: 'ana@x.com', leave_time: '2026-11-02T10:15:00Z' })),
+    liveRecord(ev('meeting.participant_joined', { user_name: 'Ana', email: 'ana@x.com', join_time: '2026-11-02T10:20:00Z' })),
+    liveRecord(ev('meeting.ended', null, { end_time: '2026-11-02T10:45:00Z' }))
+  ];
+  assert.equal(recs[0].meetingId, '999');
+  assert.equal(liveRecord({ event: 'meeting.created', payload: { object: { id: 1, uuid: 'x' } } }), null);
+  const doc = { startTime: recs[0].startTime, endedAt: recs[4].endedAt, events: recs.map((r) => r.event).filter(Boolean) };
+  const people = liveParticipants(doc, { email: 'h@biz.com' });
+  const host = people.find((p) => p.name === 'Host');
+  const ana = people.find((p) => p.name === 'Ana');
+  assert.equal(host.isHost, true);
+  assert.equal(ana.email, 'ana@x.com');
+  assert.equal(ana.sessions.length, 2);
+  assert.equal((ana.sessions[1].end - ana.sessions[1].start) / 60000, 25, 'open session closes at meeting end');
+});

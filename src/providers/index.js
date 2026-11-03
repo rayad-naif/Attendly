@@ -9,8 +9,8 @@ class ConnectionError extends Error {
   constructor(message) { super(message); this.name = 'ConnectionError'; }
 }
 
-function createProviders({ cfg, http, store, crypto }) {
-  const all = { zoom: createZoom({ cfg, http }), teams: createTeams({ cfg, http }), meet: createMeet({ cfg, http }) };
+function createProviders({ cfg, http, store, crypto, now }) {
+  const all = { zoom: createZoom({ cfg, http, store, now }), teams: createTeams({ cfg, http }), meet: createMeet({ cfg, http }) };
 
   function tokenFields(t, old) {
     return {

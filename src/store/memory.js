@@ -3,7 +3,7 @@
 const copy = (o) => (o == null ? null : structuredClone(o));
 
 function createMemoryStore() {
-  const locations = new Map(), companies = new Map(), jobs = new Map(), seenIds = new Map();
+  const locations = new Map(), companies = new Map(), jobs = new Map(), seenIds = new Map(), live = new Map();
   const logs = [];
   return {
     kind: 'memory',
@@ -64,6 +64,25 @@ function createMemoryStore() {
       if (logs.length > 2000) logs.length = 2000;
     },
     async recentLogs(locationId, n) { return logs.filter((l) => !locationId || l.locationId === locationId).slice(0, n || 50).map(copy); },
+    /* Live meeting events (Zoom webhooks), kept 3 days. */
+    async addLiveEvent(r) {
+      const now = Date.now();
+      for (const [k, d] of live) if (d.expiresAt < now) live.delete(k);
+      const d = live.get(r.id) || { _id: r.id, provider: r.provider, meetingId: r.meetingId, uuid: r.uuid, hostId: r.hostId, startTime: r.startTime, events: [] };
+      if (!d.startTime && r.startTime) d.startTime = r.startTime;
+      if (r.endedAt) d.endedAt = r.endedAt;
+      if (r.event) { d.events.push(r.event); if (d.events.length > 3000) d.events.splice(0, d.events.length - 3000); }
+      d.expiresAt = now + 3 * 86400e3;
+      live.set(r.id, d);
+    },
+    async liveMeetings(provider, meetingId, from, to) {
+      return [...live.values()].filter((d) => d.provider === provider && d.meetingId === meetingId && d.startTime >= from && d.startTime <= to).map(copy);
+    },
+    async isZoomUserConnected(userId) {
+      if (!userId) return false;
+      for (const l of locations.values()) if (l.connections && l.connections.zoom && l.connections.zoom.account && l.connections.zoom.account.id === userId) return true;
+      return false;
+    },
     async ping() { return 'memory'; },
     async close() {}
   };
