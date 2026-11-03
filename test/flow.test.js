@@ -243,3 +243,35 @@ test('public pages are served', async (t) => {
     assert.match(await r.text(), new RegExp(text), path);
   }
 });
+
+test('nothing shown inside the CRM names the CRM vendor', async (t) => {
+  const { VENDOR_WORDS, crmSafe } = require('../src/app');
+  const fs = require('fs');
+  const path = require('path');
+  const banned = new RegExp(VENDOR_WORDS.source, 'i');
+  const env = await setup();
+  t.after(() => env.server.close());
+  const { w, hook, cron } = env;
+
+  // Sidebar page and its sign-in error messages.
+  assert.doesNotMatch(await (await fetch(env.base + '/app')).text(), banned);
+  assert.doesNotMatch(await (await fetch(env.base + '/app/sso', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"payload":"x"}' })).text(), banned);
+  // Connect popup result page.
+  assert.doesNotMatch(await (await fetch(env.base + '/connect/zoom/callback?state=bad')).text(), banned);
+  // Install success page text and every user-facing error string in the server code.
+  for (const f of ['src/app.js', 'src/providers/index.js', 'src/jobs.js', 'src/notes.js', 'src/fields.js', 'src/settings.js']) {
+    const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+    for (const m of src.matchAll(/(?:error:|ConnectionError\(|NotesUnavailable\(|page\([^,]+,|reason:|title:|body\b[^\n]*?)\s*'([^']*)'/g)) assert.doesNotMatch(m[1], banned, f + ': ' + m[1]);
+  }
+
+  // Everything written into the CRM during a full run: statuses, tags, fields, notes, tasks.
+  await hook('AppointmentCreate', w.appts.a1, 'v1');
+  for (const id of ['b1', 'b2', 'b3']) await hook('AppointmentCreate', w.appts[id], 'v-' + id);
+  for (const at of ['2026-11-02T14:41:00Z', '2026-11-02T14:47:00Z', '2026-11-02T17:11:00Z', '2026-11-02T17:17:00Z']) { env.setTime(at); await cron(); }
+  const written = w.calls.filter((c) => c.method !== 'GET' && c.url.startsWith('https://services.leadconnectorhq.com') && !c.url.includes('/oauth/'));
+  assert.ok(written.length > 10);
+  for (const c of written) assert.doesNotMatch(JSON.stringify(c.body || ''), banned, c.method + ' ' + c.url);
+
+  // Activity log shown in the sidebar is filtered.
+  assert.equal(crmSafe('HTTP 500 from services.leadconnectorhq.com/contacts/x (HighLevel sub-account)'), 'HTTP 500 from the CRM API (CRM account)');
+});
