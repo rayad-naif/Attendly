@@ -120,7 +120,7 @@
       var v = get(state.settings, el.name);
       if (el.type === 'checkbox') el.checked = !!v; else el.value = v == null ? '' : v;
     });
-    $('#aiNote').textContent = state.notesAi ? '' : 'AI summaries are not enabled on this server yet (no Claude API key), so notes will contain attendance only.';
+    $('#aiNote').textContent = state.notesAi ? '' : 'AI summaries are not enabled on this server yet (no Gemini API key), so notes will contain attendance only.';
     var t = $('#log'); t.innerHTML = '';
     if (!state.logs.length) { t.innerHTML = '<tr><td>-</td><td>No activity yet.</td></tr>'; }
     state.logs.forEach(function (l) {

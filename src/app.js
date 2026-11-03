@@ -23,7 +23,7 @@ function createApp(cfg, deps = {}) {
   const providers = createProviders({ cfg, http, store, crypto });
   const settings = createSettings({ ghl });
   const fields = createFields({ ghl, store });
-  const notes = deps.notes || createNotes({ cfg, client: deps.anthropic });
+  const notes = deps.notes || createNotes({ cfg, http });
   const jobs = createJobs({ cfg, store, ghl, providers, settings, fields, notes, now: deps.now });
 
   const app = express();
@@ -35,7 +35,17 @@ function createApp(cfg, deps = {}) {
 
   app.use((req, res, next) => { res.setHeader('X-Content-Type-Options', 'nosniff'); next(); });
 
-  app.get('/', (req, res) => res.type('html').send(page(cfg.appName, '<h1>' + esc(cfg.appName) + '</h1><p>Marks HighLevel appointments held on Zoom, Microsoft Teams and Google Meet as Showed or No-show, and saves meeting notes to each contact.</p>')));
+  const pages = require('./pages');
+  const cache = {};
+  const sendPage = (name) => (req, res) => {
+    if (!cache[name]) cache[name] = pages[name](cfg);
+    res.set('Cache-Control', 'public, max-age=300').type('html').send(cache[name]);
+  };
+  app.get('/', sendPage('home'));
+  app.get('/docs', sendPage('docs'));
+  app.get(['/support', '/contact'], sendPage('support'));
+  app.get('/privacy', sendPage('privacy'));
+  app.get('/terms', sendPage('terms'));
   app.get('/health', ah(async (req, res) => res.json({ ok: true, store: await store.ping() })));
 
   /* ---------- HighLevel install ---------- */

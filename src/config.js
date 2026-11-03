@@ -69,10 +69,16 @@ function load(env = process.env) {
       clientId: env.GOOGLE_CLIENT_ID || '',
       clientSecret: env.GOOGLE_CLIENT_SECRET || ''
     },
-    claude: {
-      apiKey: env.ANTHROPIC_API_KEY || '',
-      model: env.CLAUDE_MODEL || 'claude-opus-5-5',
-      effort: env.CLAUDE_EFFORT || 'medium'
+    gemini: {
+      apiKey: env.GEMINI_API_KEY || '',
+      // Check Google's model list for the newest Flash ID; set GEMINI_MODEL to change it.
+      model: env.GEMINI_MODEL || 'gemini-3.6-flash'
+    },
+    brand: {
+      supportEmail: env.SUPPORT_EMAIL || 'malikrayad110@gmail.com',
+      legalName: env.LEGAL_NAME || 'Attendly',
+      legalUpdated: env.LEGAL_UPDATED || 'November 3, 2026',
+      marketplaceUrl: env.MARKETPLACE_URL || ''
     },
     // GHL's API docs give no maximum note length, so long notes are split into parts.
     noteMaxChars: Number(env.NOTE_MAX_CHARS || 4000),
