@@ -1,8 +1,12 @@
 'use strict';
 /* Zoom (user-managed OAuth app).
-   Attendance: Report API participants (paid plans), falling back to the Past
-   Meeting participants API. Notes: AI Companion meeting summary, else the
-   cloud-recording transcript (VTT). */
+   Attendance, in order:
+     1. Live join/leave events Zoom sends to /webhooks/zoom while the meeting
+        runs. Works on every Zoom plan, free included.
+     2. Report API / Past Meeting participants API (paid plans only), used when
+        no live events were received.
+   Notes: AI Companion meeting summary, else the cloud-recording transcript
+   (both paid features); otherwise notes are attendance-only. */
 const { vttToText } = require('../vtt');
 
 const API = 'https://api.zoom.us/v2';
@@ -11,7 +15,69 @@ const MATCH_WINDOW_MS = 60 * 60 * 1000;
 // Zoom requires double encoding for UUIDs that start with "/" or contain "//".
 const encUuid = (u) => (u.startsWith('/') || u.includes('//') ? encodeURIComponent(encodeURIComponent(u)) : encodeURIComponent(u));
 
-function createZoom({ cfg, http }) {
+const LIVE_EVENTS = ['meeting.started', 'meeting.participant_joined', 'meeting.participant_left', 'meeting.ended'];
+
+/* Turns a verified Zoom webhook body into a record for store.addLiveEvent, or null. */
+function liveRecord(evt) {
+  if (!evt || !LIVE_EVENTS.includes(evt.event)) return null;
+  const o = (evt.payload && evt.payload.object) || {};
+  if (!o.uuid || !o.id) return null;
+  const rec = {
+    id: 'zoom:' + o.uuid, provider: 'zoom', meetingId: String(o.id), uuid: o.uuid, hostId: o.host_id || '',
+    startTime: Date.parse(o.start_time) || undefined
+  };
+  if (evt.event === 'meeting.ended') rec.endedAt = Date.parse(o.end_time) || Number(evt.event_ts) || Date.now();
+  const p = o.participant;
+  if (p && (evt.event === 'meeting.participant_joined' || evt.event === 'meeting.participant_left')) {
+    const joined = evt.event === 'meeting.participant_joined';
+    const at = Date.parse(joined ? p.join_time : p.leave_time) || Number(evt.event_ts) || Date.now();
+    const email = String(p.email || '').toLowerCase();
+    rec.event = {
+      t: joined ? 'j' : 'l', at,
+      k: p.participant_user_id || p.id || email || 'n:' + String(p.user_name || '').toLowerCase().trim(),
+      n: String(p.user_name || '').slice(0, 120), e: email.slice(0, 200),
+      h: !!(p.id && o.host_id && p.id === o.host_id)
+    };
+    if (!rec.startTime) rec.startTime = at;
+  }
+  return rec;
+}
+
+function hasOpenSession(doc) {
+  const open = new Map();
+  for (const ev of (doc.events || []).slice().sort((a, b) => a.at - b.at)) open.set(ev.k, ev.t === 'j');
+  return [...open.values()].some(Boolean);
+}
+
+/* Rebuilds participants (with join/leave sessions) from a stored live meeting. */
+function liveParticipants(doc, account) {
+  const events = (doc.events || []).slice().sort((a, b) => a.at - b.at);
+  const last = events.length ? events[events.length - 1].at : doc.startTime;
+  const closeAt = doc.endedAt || last;
+  const people = new Map();
+  for (const ev of events) {
+    const p = people.get(ev.k) || { name: ev.n, email: ev.e, isHost: false, sessions: [], open: null };
+    if (ev.n) p.name = ev.n;
+    if (ev.e) p.email = ev.e;
+    if (ev.h || (ev.e && account && ev.e === account.email)) p.isHost = true;
+    if (ev.t === 'j') {
+      if (p.open !== null) p.sessions.push({ start: p.open, end: ev.at });
+      p.open = ev.at;
+    } else if (p.open !== null) {
+      p.sessions.push({ start: p.open, end: ev.at });
+      p.open = null;
+    } else {
+      p.sessions.push({ start: doc.startTime || ev.at, end: ev.at }); // joined before we were listening
+    }
+    people.set(ev.k, p);
+  }
+  return [...people.values()].map((p) => {
+    if (p.open !== null) p.sessions.push({ start: p.open, end: Math.max(closeAt, p.open) });
+    return { name: p.name, email: p.email, isHost: p.isHost, sessions: p.sessions };
+  });
+}
+
+function createZoom({ cfg, http, store, now = () => Date.now() }) {
   const z = cfg.zoom;
   const basic = () => 'Basic ' + Buffer.from(z.clientId + ':' + z.clientSecret).toString('base64');
   const redirectUri = cfg.baseUrl + '/connect/zoom/callback';
@@ -62,6 +128,22 @@ function createZoom({ cfg, http }) {
       let meetingId = ctx.meeting.meetingId;
       if (!meetingId && ctx.meeting.vanity) meetingId = ctx.account.pmi;
       if (!meetingId) return { status: 'not_found', reason: 'Zoom link has no meeting number' };
+      const { start, end } = ctx.window;
+
+      // 1) Live events received from Zoom (any plan).
+      if (store && store.liveMeetings) {
+        const docs = await store.liveMeetings('zoom', String(meetingId), start - MATCH_WINDOW_MS, end);
+        if (docs.length) {
+          // Someone is still in a meeting that hasn't ended: wait (up to 3 h past the scheduled end).
+          if (docs.some((d) => !d.endedAt && hasOpenSession(d)) && now() < end + 3 * 3600e3) {
+            return { status: 'pending', reason: 'Zoom meeting is still running' };
+          }
+          const participants = docs.flatMap((d) => liveParticipants(d, ctx.account));
+          return { status: 'ready', participants, ref: { uuids: docs.map((d) => d.uuid) }, source: 'live' };
+        }
+      }
+
+      // 2) Zoom's participant reports (paid plans).
 
       // Every past instance of this meeting number (a reused room can host many appointments).
       let instances = [];
@@ -75,7 +157,6 @@ function createZoom({ cfg, http }) {
           if (last && last.uuid) instances = [{ uuid: last.uuid, start_time: last.start_time }];
         } catch (e) { if (e.status !== 404 && e.status !== 400) throw e; }
       }
-      const { start, end } = ctx.window;
       const picked = instances.filter((m) => {
         const t = Date.parse(m.start_time);
         return t >= start - MATCH_WINDOW_MS && t <= end;
@@ -166,4 +247,4 @@ function summaryText(s) {
   return parts.join('\n\n').trim();
 }
 
-module.exports = { createZoom, summaryText };
+module.exports = { createZoom, summaryText, liveRecord, liveParticipants, LIVE_EVENTS };

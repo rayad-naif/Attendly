@@ -81,7 +81,7 @@ async function setup() {
   const w = world();
   const cfg = config.load({
     SESSION_SECRET: SECRET, GHL_CLIENT_ID: 'cid', GHL_CLIENT_SECRET: 'cs', GHL_SKIP_WEBHOOK_VERIFY: '1',
-    ZOOM_CLIENT_ID: 'z', ZOOM_CLIENT_SECRET: 'zs', CRON_SECRET: 'cron-secret', BASE_URL: 'https://app.test'
+    ZOOM_CLIENT_ID: 'z', ZOOM_CLIENT_SECRET: 'zs', ZOOM_WEBHOOK_SECRET: 'zsecret', CRON_SECRET: 'cron-secret', BASE_URL: 'https://app.test'
   });
   const store = createMemoryStore();
   const c = createCrypto(SECRET);
@@ -108,7 +108,13 @@ async function setup() {
     body: JSON.stringify({ type, locationId: 'loc1', webhookId: id, timestamp: new Date().toISOString(), appointment: appt })
   }).then((r) => r.json());
   const cron = () => fetch(base + '/api/cron/run', { headers: { Authorization: 'Bearer cron-secret' } }).then((r) => r.json());
-  return { w, store, server, base, hook, cron, summarized, setTime: (s) => { T = Date.parse(s); } };
+  const zoomHook = (body, opts = {}) => {
+    const raw = JSON.stringify(body);
+    const ts = String(opts.ts || Date.now());
+    const sig = 'v0=' + require('crypto').createHmac('sha256', opts.secret || 'zsecret').update('v0:' + ts + ':' + raw).digest('hex');
+    return fetch(base + '/webhooks/zoom', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-zm-request-timestamp': ts, 'x-zm-signature': sig }, body: raw });
+  };
+  return { w, store, server, base, hook, cron, zoomHook, summarized, setTime: (s) => { T = Date.parse(s); } };
 }
 
 test('one-to-one and class bookings are marked and get notes', async (t) => {
@@ -274,4 +280,64 @@ test('nothing shown inside the CRM names the CRM vendor', async (t) => {
 
   // Activity log shown in the sidebar is filtered.
   assert.equal(crmSafe('HTTP 500 from services.leadconnectorhq.com/contacts/x (HighLevel sub-account)'), 'HTTP 500 from the CRM API (CRM account)');
+});
+
+
+/* ---- Free Zoom accounts: attendance from live webhook events ---- */
+function zoomEvent(event, { uuid = 'live-uuid-1', meetingId = 70000000001, host = 'host1', start = '2026-11-02T18:00:00Z', end, participant } = {}) {
+  const object = { id: meetingId, uuid, host_id: host, topic: 'Coaching', start_time: start };
+  if (end) object.end_time = end;
+  if (participant) object.participant = participant;
+  return { event, event_ts: Date.now(), payload: { account_id: 'acc', object } };
+}
+
+test('free Zoom: attendance comes from live join/leave events', async (t) => {
+  const env = await setup();
+  t.after(() => env.server.close());
+  const { w, hook, cron, zoomHook, store } = env;
+  w.appts.f1 = { id: 'f1', calendarId: 'cal9', contactId: 'c1', title: 'Coaching', appointmentStatus: 'confirmed', assignedUserId: 'u1', startTime: '2026-11-02T18:00:00Z', endTime: '2026-11-02T18:30:00Z', address: 'https://us05web.zoom.us/j/70000000001?pwd=x' };
+  await hook('AppointmentCreate', w.appts.f1, 'f-1');
+
+  const jane = (t2, joined) => ({ user_id: '1677' + t2, user_name: 'Jane Doe', id: '', participant_uuid: 'p-jane', email: '', [joined ? 'join_time' : 'leave_time']: t2 });
+  const send = (b) => zoomHook(b).then((r) => r.status);
+  assert.equal(await send(zoomEvent('meeting.started')), 200);
+  assert.equal(await send(zoomEvent('meeting.participant_joined', { participant: { user_name: 'Coach Carter', id: 'host1', email: 'coach@biz.com', join_time: '2026-11-02T18:00:00Z' } })), 200);
+  await send(zoomEvent('meeting.participant_joined', { participant: jane('2026-11-02T18:02:00Z', true) }));
+  await send(zoomEvent('meeting.participant_left', { participant: jane('2026-11-02T18:10:00Z', false) }));
+  await send(zoomEvent('meeting.participant_joined', { participant: jane('2026-11-02T18:11:00Z', true) }));
+
+  // Events from a Zoom user who never connected the app are not stored.
+  await send(zoomEvent('meeting.participant_joined', { uuid: 'other', meetingId: 123, host: 'stranger', participant: jane('2026-11-02T18:05:00Z', true) }));
+  assert.equal((await store.liveMeetings('zoom', '123', 0, Date.now() * 2)).length, 0);
+  // Bad signatures are rejected.
+  assert.equal((await zoomHook(zoomEvent('meeting.ended'), { secret: 'wrong' })).status, 401);
+
+  // Jane is still in the meeting at the first check: wait instead of guessing.
+  env.setTime('2026-11-02T18:41:00Z');
+  await cron();
+  assert.equal(w.appts.f1.appointmentStatus, 'confirmed');
+
+  await send(zoomEvent('meeting.participant_left', { participant: jane('2026-11-02T18:28:00Z', false) }));
+  await send(zoomEvent('meeting.ended', { end: '2026-11-02T18:30:00Z' }));
+  env.setTime('2026-11-02T19:05:00Z');
+  await cron();
+  assert.equal(w.appts.f1.appointmentStatus, 'showed');
+  const fields = w.calls.find((c) => c.method === 'PUT' && c.url.endsWith('/contacts/c1'));
+  assert.ok(fields.body.customFields.some((f) => f.field_value === '25'), 'rejoins are added up: 8 + 17 = 25 min');
+  // No paid-only participant report was needed.
+  assert.equal(w.calls.filter((c) => c.url.includes('/report/meetings/')).length, 0);
+});
+
+test('free Zoom: booked contact who never joined is a No-show', async (t) => {
+  const env = await setup();
+  t.after(() => env.server.close());
+  const { w, hook, cron, zoomHook } = env;
+  w.appts.f2 = { id: 'f2', calendarId: 'cal9', contactId: 'c4', title: 'Coaching', appointmentStatus: 'new', assignedUserId: 'u1', startTime: '2026-11-02T18:00:00Z', endTime: '2026-11-02T18:30:00Z', address: 'https://zoom.us/j/70000000001' };
+  await hook('AppointmentCreate', w.appts.f2, 'f-2');
+  await zoomHook(zoomEvent('meeting.participant_joined', { participant: { user_name: 'Coach Carter', id: 'host1', join_time: '2026-11-02T18:00:00Z' } }));
+  await zoomHook(zoomEvent('meeting.participant_left', { participant: { user_name: 'Coach Carter', id: 'host1', leave_time: '2026-11-02T18:20:00Z' } }));
+  await zoomHook(zoomEvent('meeting.ended', { end: '2026-11-02T18:20:00Z' }));
+  env.setTime('2026-11-02T18:41:00Z');
+  await cron();
+  assert.equal(w.appts.f2.appointmentStatus, 'noshow');
 });

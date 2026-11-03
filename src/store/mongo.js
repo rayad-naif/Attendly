@@ -6,7 +6,8 @@
      companies  agency tokens for bulk installs (used to mint location tokens)
      jobs       one per meeting waiting to be checked; deleted when done
      seen       webhook ids, auto-deleted after 48 h (TTL)
-     log        capped at 20 MB, no personal data */
+     log        capped at 20 MB, no personal data
+     live       join/leave events from Zoom webhooks, one doc per meeting, auto-deleted after 3 days (TTL) */
 const { MongoClient } = require('mongodb');
 
 function createMongoStore(uri, dbName) {
@@ -23,7 +24,10 @@ function createMongoStore(uri, dbName) {
         await Promise.all([
           d.collection('jobs').createIndex({ dueAt: 1 }),
           d.collection('jobs').createIndex({ locationId: 1, eventIds: 1 }),
-          d.collection('seen').createIndex({ at: 1 }, { expireAfterSeconds: 48 * 3600 })
+          d.collection('seen').createIndex({ at: 1 }, { expireAfterSeconds: 48 * 3600 }),
+          d.collection('live').createIndex({ provider: 1, meetingId: 1, startTime: 1 }),
+          d.collection('live').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+          d.collection('locations').createIndex({ 'connections.zoom.account.id': 1 })
         ].map((p) => p.catch((e) => console.warn('[store] index: ' + e.message))));
         d.__client = client;
         return d;
@@ -107,6 +111,24 @@ function createMongoStore(uri, dbName) {
     async recentLogs(locationId, n) {
       const q = locationId ? { locationId } : {};
       return (await col('log')).find(q, { projection: { _id: 0 } }).sort({ $natural: -1 }).limit(n || 50).toArray();
+    },
+    async addLiveEvent(r) {
+      const set = { expiresAt: new Date(Date.now() + 3 * 86400e3) };
+      if (r.endedAt) set.endedAt = r.endedAt;
+      const update = {
+        $setOnInsert: { provider: r.provider, meetingId: r.meetingId, uuid: r.uuid, hostId: r.hostId },
+        $set: set,
+        $min: { startTime: r.startTime || Number.MAX_SAFE_INTEGER }
+      };
+      if (r.event) update.$push = { events: { $each: [r.event], $slice: -3000 } };
+      await (await col('live')).updateOne({ _id: r.id }, update, { upsert: true });
+    },
+    async liveMeetings(provider, meetingId, from, to) {
+      return (await col('live')).find({ provider, meetingId, startTime: { $gte: from, $lte: to } }).toArray();
+    },
+    async isZoomUserConnected(userId) {
+      if (!userId) return false;
+      return !!(await (await col('locations')).findOne({ 'connections.zoom.account.id': userId }, { projection: { _id: 1 } }));
     },
     async ping() { await (await db()).command({ ping: 1 }); return 'mongo'; },
     async close() {

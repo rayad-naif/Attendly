@@ -179,7 +179,7 @@ function docs(cfg) {
 
 <h2 id="requirements">Requirements</h2>
 <table><thead><tr><th>Platform</th><th>What you need</th></tr></thead><tbody>
-<tr><td>Zoom</td><td>A paid Zoom plan (Pro or higher) for participant reports. Cloud recording with transcripts, or AI Companion summaries, for AI notes.</td></tr>
+<tr><td>Zoom</td><td>Any Zoom plan, free included, for attendance. For AI notes, a paid plan with cloud recording transcripts or AI Companion summaries; free accounts get attendance-only notes.</td></tr>
 <tr><td>Microsoft Teams</td><td>A Microsoft 365 work or school account. Your IT admin may need to approve the app once. Turn on transcription for AI notes. Personal Teams (teams.live.com) is not supported.</td></tr>
 <tr><td>Google Meet</td><td>A Google Workspace account. Turn on transcripts for AI notes. Meet does not share participant emails, so matching uses names.</td></tr>
 </tbody></table>

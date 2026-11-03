@@ -12,6 +12,7 @@ const { createSettings } = require('./settings');
 const { createFields } = require('./fields');
 const { createNotes } = require('./notes');
 const { createJobs } = require('./jobs');
+const { liveRecord: zoomLiveRecord } = require('./providers/zoom');
 
 const APPOINTMENT_EVENTS = ['AppointmentCreate', 'AppointmentUpdate', 'AppointmentDelete'];
 
@@ -27,7 +28,7 @@ function createApp(cfg, deps = {}) {
   const http = deps.http || createHttp(deps.fetch);
   const store = deps.store || createStore(cfg);
   const ghl = createGhl({ cfg, store, crypto, http });
-  const providers = createProviders({ cfg, http, store, crypto });
+  const providers = createProviders({ cfg, http, store, crypto, now: deps.now });
   const settings = createSettings({ ghl });
   const fields = createFields({ ghl, store });
   const notes = deps.notes || createNotes({ cfg, http });
@@ -114,7 +115,12 @@ function createApp(cfg, deps = {}) {
     const ts = req.headers['x-zm-request-timestamp'];
     const expected = 'v0=' + nodeCrypto.createHmac('sha256', secret).update('v0:' + ts + ':' + raw).digest('hex');
     if (!safeEqual(expected, req.headers['x-zm-signature'] || '')) return res.status(401).end();
+    if (Math.abs(Date.now() - Number(ts)) > 15 * 60 * 1000) return res.status(400).json({ error: 'stale' });
+    if (await store.seen('zoom:' + nodeCrypto.createHash('sha256').update(raw).digest('hex'))) return res.json({ ok: true, duplicate: true });
     if (evt.event === 'app_deauthorized') await store.log(null, 'zoom_deauthorized', (evt.payload && evt.payload.user_id) || '');
+    // Live join/leave events: kept only for hosts who connected Zoom to this app.
+    const rec = zoomLiveRecord(evt);
+    if (rec && (await store.isZoomUserConnected(rec.hostId))) await store.addLiveEvent(rec);
     res.json({ ok: true });
   }));
 

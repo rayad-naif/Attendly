@@ -72,9 +72,10 @@ Settings are saved in GHL as the Custom Value **Attendly Settings** (JSON). `cal
 Create a **General app** (user-managed OAuth) at marketplace.zoom.us.
 
 - Redirect URL: `https://<your-domain>/connect/zoom/callback`
-- Scopes: user profile read, past meeting and past meeting instances read, meeting participant report read, cloud recording read, and meeting summary read. Granular names differ by app type, so pick them in the scope picker.
-- Event subscription endpoint: `https://<your-domain>/webhooks/zoom` (URL validation and deauthorization). Put its secret token in `ZOOM_WEBHOOK_SECRET`.
-- The host needs a **paid** plan for participant reports and cloud transcripts. AI Companion summaries are used automatically when the host has them on.
+- Scopes: `user:read:user` and `meeting:read:list_past_participants` (required); past meeting and past instances read, cloud recording read and meeting summary read (optional, for paid hosts and AI notes). Pick the closest names in the scope picker.
+- Event subscription endpoint: `https://<your-domain>/webhooks/zoom`. Put its secret token in `ZOOM_WEBHOOK_SECRET` and redeploy before clicking Validate.
+- Events: **Meeting → Participant/Host joined meeting** (`meeting.participant_joined`), **Participant/Host left meeting** (`meeting.participant_left`), **End Meeting** (`meeting.ended`), optionally **Start Meeting** (`meeting.started`), and **App Deauthorized**. Zoom may ask for the scope each event needs; accept it.
+- **Any Zoom plan works for attendance**, free included: Zoom sends join/leave events live and the app keeps them for 3 days. On paid plans the app falls back to Zoom's participant report if events were missed. AI notes need a paid plan (cloud transcripts or AI Companion); free hosts get attendance-only notes.
 
 ### 3. Microsoft Teams
 
@@ -131,3 +132,4 @@ These were checked against HighLevel's OpenAPI spec (github.com/GoHighLevel/high
 - **Note length limit:** the spec gives none, so notes over `NOTE_MAX_CHARS` (default 4,000) are split into numbered parts.
 - **Class bookings:** the app assumes one appointment per booked contact sharing the same join link. You confirmed the link is shared. Appointments are grouped by calendar, start time and meeting link.
 - **Exact Zoom granular scope names** for your app type.
+- **Zoom live events on free accounts:** confirm with a real free account that participant joined/left events arrive.
