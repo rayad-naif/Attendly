@@ -79,6 +79,8 @@ Create a **General app** (user-managed OAuth) at marketplace.zoom.us.
 
 ### 3. Microsoft Teams
 
+Teams is shown as **Coming soon** in the sidebar and on the website until you set `TEAMS_ENABLED=1` (plus the `MS_` variables below).
+
 Register a multitenant app in Entra ID.
 
 - Redirect URI (Web): `https://<your-domain>/connect/teams/callback`

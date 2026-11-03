@@ -44,6 +44,8 @@ function load(env = process.env) {
     mongoUri: env.MONGODB_URI || '',
     mongoDb: env.MONGODB_DB || 'Attendly',
     serverless: !!env.VERCEL,
+    // Microsoft Teams shows as "Coming soon" until TEAMS_ENABLED=1.
+    teamsEnabled: env.TEAMS_ENABLED === '1',
     ghl: {
       clientId: env.GHL_CLIENT_ID || '',
       clientSecret: env.GHL_CLIENT_SECRET || '',

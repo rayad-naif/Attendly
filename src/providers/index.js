@@ -10,7 +10,7 @@ class ConnectionError extends Error {
 }
 
 function createProviders({ cfg, http, store, crypto, now }) {
-  const all = { zoom: createZoom({ cfg, http, store, now }), teams: createTeams({ cfg, http }), meet: createMeet({ cfg, http }) };
+  const all = { zoom: createZoom({ cfg, http, store, now }), meet: createMeet({ cfg, http }), teams: createTeams({ cfg, http }) };
 
   function tokenFields(t, old) {
     return {

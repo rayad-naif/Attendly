@@ -100,12 +100,13 @@
       var x = state.connections[k], d = document.createElement('div'); d.className = 'conn';
       var b = document.createElement('b'); b.textContent = x.label; d.appendChild(b);
       var s = document.createElement('small');
-      if (!x.configured) s.textContent = 'Not available on this server';
+      if (x.comingSoon) s.textContent = 'Coming soon';
+      else if (!x.configured) s.textContent = 'Not available on this server';
       else if (x.broken) { s.className = 'err'; s.textContent = x.broken; }
       else if (x.connected) { s.className = 'ok'; s.textContent = 'Connected: ' + (x.account.email || x.account.name); }
       else s.textContent = 'Not connected';
       d.appendChild(s);
-      if (x.configured) {
+      if (x.configured && !x.comingSoon) {
         var btn = document.createElement('button'); btn.type = 'button';
         btn.className = x.connected && !x.broken ? 'ghost' : '';
         btn.textContent = x.connected && !x.broken ? 'Disconnect' : (x.broken ? 'Reconnect' : 'Connect');

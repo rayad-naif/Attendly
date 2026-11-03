@@ -24,7 +24,7 @@ function createTeams({ cfg, http }) {
   return {
     name: 'teams',
     label: 'Microsoft Teams',
-    configured: () => !!(m.clientId && m.clientSecret),
+    configured: () => !!(cfg.teamsEnabled && m.clientId && m.clientSecret),
     authorizeUrl(state) {
       const u = new URL(base + '/authorize');
       u.searchParams.set('client_id', m.clientId);
