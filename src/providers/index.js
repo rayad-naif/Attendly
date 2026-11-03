@@ -24,7 +24,7 @@ function createProviders({ cfg, http, store, crypto }) {
     const p = all[name];
     const { token, account } = await p.exchange(code);
     const loc = await store.getLocation(locationId);
-    if (!loc) throw new ConnectionError('This sub-account has not installed the app');
+    if (!loc) throw new ConnectionError('This account has not installed the app');
     loc.connections = loc.connections || {};
     loc.connections[name] = Object.assign(tokenFields(token), { account, connectedAt: new Date(), broken: null });
     await store.saveLocation(loc);

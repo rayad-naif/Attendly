@@ -15,6 +15,13 @@ const { createJobs } = require('./jobs');
 
 const APPOINTMENT_EVENTS = ['AppointmentCreate', 'AppointmentUpdate', 'AppointmentDelete'];
 
+/* Text shown inside the CRM must not name the CRM vendor (white-label). */
+const VENDOR_WORDS = /\b(?:go\s*high\s*level|high\s*level|ghl|lead\s*connector(?:hq)?|agenc(?:y|ies)|sub-?\s?accounts?)\b/gi;
+const crmSafe = (s) => String(s == null ? '' : s)
+  .replace(/https?:\/\/\S*leadconnectorhq\.com\S*/gi, 'the CRM API')
+  .replace(/\S*leadconnectorhq\.com\S*/gi, 'the CRM API')
+  .replace(VENDOR_WORDS, (m) => (/^sub/i.test(m) ? 'account' : /^agenc/i.test(m) ? 'account' : 'CRM'));
+
 function createApp(cfg, deps = {}) {
   const crypto = createCrypto(cfg.sessionSecret);
   const http = deps.http || createHttp(deps.fetch);
@@ -53,11 +60,11 @@ function createApp(cfg, deps = {}) {
     if (!req.query.code) return res.status(400).type('html').send(page('Install failed', '<p>Missing authorization code.</p>'));
     const r = await ghl.exchangeCode(String(req.query.code));
     for (const id of r.locationIds) {
-      await store.log(id, 'installed', r.type);
+      await store.log(id, 'installed', '');
       try { await fields.ensure(id); } catch (e) { await store.log(id, 'field_setup_failed', e.message); }
     }
     res.type('html').send(page('Installed', '<h1>' + esc(cfg.appName) + ' is installed</h1><p>Open <b>' + esc(cfg.appName) +
-      '</b> from the sub-account sidebar to connect Zoom, Microsoft Teams or Google Meet and set your rules.</p>'));
+      '</b> from the sidebar to connect Zoom, Microsoft Teams or Google Meet and set your rules.</p>'));
   }));
 
   /* ---------- HighLevel webhooks ---------- */
@@ -125,9 +132,9 @@ function createApp(cfg, deps = {}) {
   app.post('/app/sso', express.json({ limit: '32kb' }), ah(async (req, res) => {
     const data = decryptGhlSso(req.body && req.body.payload, cfg.ghl.ssoKey);
     const locationId = data && (data.activeLocation || data.locationId);
-    if (!locationId) return res.status(401).json({ error: 'Open this page from inside a HighLevel sub-account.' });
+    if (!locationId) return res.status(401).json({ error: 'Open this page from inside your account.' });
     const loc = await store.getLocation(locationId);
-    if (!loc || !loc.installed) return res.status(404).json({ error: 'The app is not installed on this sub-account yet.' });
+    if (!loc || !loc.installed) return res.status(404).json({ error: 'The app is not installed on this account yet.' });
     res.json({ token: crypto.sign({ loc: locationId, uid: data.userId || null, exp: Date.now() + 12 * 3600e3 }), user: data.userName || data.email || '' });
   }));
 
@@ -146,7 +153,7 @@ function createApp(cfg, deps = {}) {
       const c = loc.connections && loc.connections[p.name];
       connections[p.name] = { label: p.label, configured: p.configured(), connected: !!c, account: c ? { email: c.account.email, name: c.account.name } : null, broken: c ? c.broken || null : null };
     }
-    res.json({ settings: await settings.get(req.loc), connections, logs: await store.recentLogs(req.loc, 30), notesAi: notes.enabled });
+    res.json({ settings: await settings.get(req.loc), connections, logs: (await store.recentLogs(req.loc, 30)).map((l) => Object.assign(l, { detail: crmSafe(l.detail) })), notesAi: notes.enabled });
   }));
   api.post('/settings', ah(async (req, res) => res.json({ settings: await settings.save(req.loc, req.body || {}) })));
   api.post('/connect/:provider', ah(async (req, res) => {
@@ -190,4 +197,4 @@ function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-module.exports = { createApp };
+module.exports = { createApp, crmSafe, VENDOR_WORDS };

@@ -144,7 +144,7 @@
     if (d.message === 'REQUEST_USER_DATA_RESPONSE' && d.payload && !token) {
       fetch('/app/sso', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ payload: d.payload }) })
         .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error); return j; }); })
-        .then(function (j) { token = j.token; $('#status').textContent = 'Signed in' + (j.user ? ' as ' + j.user : '') + '. Changes save to this sub-account.'; $('#ui').hidden = false; return load(); })
+        .then(function (j) { token = j.token; $('#status').textContent = 'Signed in' + (j.user ? ' as ' + j.user : '') + '. Changes save to this account.'; $('#ui').hidden = false; return load(); })
         .catch(function (err) { $('#status').textContent = err.message; });
     }
   });
@@ -157,9 +157,9 @@
     });
     api('/settings', out).then(function (r) { state.settings = r.settings; render(); toast('Saved'); }).catch(function (err) { toast(err.message); });
   });
-  if (window.parent === window) { $('#status').textContent = 'Open this page from the app link in your HighLevel sub-account sidebar.'; return; }
+  if (window.parent === window) { $('#status').textContent = 'Open this page from the app link in your sidebar.'; return; }
   window.parent.postMessage({ message: 'REQUEST_USER_DATA' }, '*');
-  setTimeout(function () { if (!token && $('#status').textContent === 'Signing you in…') $('#status').textContent = 'Could not get your HighLevel session. Reload the page.'; }, 8000);
+  setTimeout(function () { if (!token && $('#status').textContent === 'Signing you in…') $('#status').textContent = 'Could not get your session. Reload the page.'; }, 8000);
 })();
 </script>
 </body>

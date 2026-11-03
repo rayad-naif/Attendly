@@ -47,7 +47,7 @@ function createGhl({ cfg, store, crypto, http }) {
       const ids = await provisionCompanyLocations(t.companyId);
       return { type: 'company', companyId: t.companyId, locationIds: ids };
     }
-    throw new HttpError('Unexpected token type from HighLevel: ' + (t.userType || 'unknown'), 400, null);
+    throw new HttpError('Unexpected account type: ' + (t.userType || 'unknown'), 400, null);
   }
 
   async function companyToken(companyId) {
@@ -62,7 +62,7 @@ function createGhl({ cfg, store, crypto, http }) {
 
   async function mintLocationToken(companyId, locationId) {
     const ctoken = await companyToken(companyId);
-    if (!ctoken) throw new HttpError('No agency token for company ' + companyId, 401, null);
+    if (!ctoken) throw new HttpError('No parent account token for ' + companyId, 401, null);
     const t = await http.request(g.apiBase + '/oauth/locationToken', {
       method: 'POST', retries: 1,
       headers: { Authorization: 'Bearer ' + ctoken, Version: g.apiVersion },
@@ -91,7 +91,7 @@ function createGhl({ cfg, store, crypto, http }) {
 
   async function locationToken(locationId, force) {
     const loc = await store.getLocation(locationId);
-    if (!loc || !loc.ghl) throw new HttpError('Location ' + locationId + ' is not installed', 401, null);
+    if (!loc || !loc.ghl) throw new HttpError('Account ' + locationId + ' is not installed', 401, null);
     const exp = new Date(loc.ghl.expiresAt).getTime();
     if (!force && exp - EARLY_REFRESH_MS > Date.now()) return crypto.decrypt(loc.ghl.access);
     if (loc.ghl.refresh) {
