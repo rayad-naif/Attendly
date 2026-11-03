@@ -55,22 +55,25 @@ test('note building and splitting', () => {
   assert.deepEqual(splitNote('short', 100), ['short']);
 });
 
-test('summarize sends structured-output request and parses JSON', async () => {
+test('summarize sends a Gemini JSON-schema request and parses the answer', async () => {
   let sent;
-  const fake = { beta: { messages: { create: async (req) => { sent = req; return { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ summary: 'S', key_points: [], decisions: [], action_items: [], next_step: '', attendees: [] }) }] }; } } } };
-  const n = createNotes({ cfg: { claude: { apiKey: '', model: 'claude-opus-5-5', effort: 'medium' } }, client: fake });
+  const http = { request: async (url, opts) => { sent = { url, opts }; return { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify({ summary: 'S', key_points: [], decisions: [], action_items: [], next_step: '', attendees: [] }) }] } }] }; } };
+  const n = createNotes({ cfg: { gemini: { apiKey: 'k', model: 'gemini-3.6-flash' } }, http });
+  assert.equal(n.enabled, true);
   const out = await n.summarize({ kind: 'transcript', text: 'Jane: hi' }, { title: 'T', platform: 'Zoom', start: 0, end: 0 }, null);
   assert.equal(out.summary, 'S');
-  assert.equal(sent.model, 'claude-opus-5-5');
-  assert.equal(sent.output_config.format.type, 'json_schema');
-  assert.equal(sent.fallbacks, 'default');
-  assert.match(sent.messages[0].content, /<source>\nJane: hi\n<\/source>/);
+  assert.equal(sent.url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent');
+  assert.equal(sent.opts.headers['x-goog-api-key'], 'k');
+  assert.equal(sent.opts.json.generationConfig.responseMimeType, 'application/json');
+  assert.equal(sent.opts.json.generationConfig.responseSchema.type, 'OBJECT');
+  assert.match(sent.opts.json.contents[0].parts[0].text, /<source>\nJane: hi\n<\/source>/);
 });
 
-test('summarize reports refusals as NotesUnavailable', async () => {
-  const fake = { beta: { messages: { create: async () => ({ stop_reason: 'refusal', content: [] }) } } };
-  const n = createNotes({ cfg: { claude: { model: 'm', effort: 'low' } }, client: fake });
-  await assert.rejects(n.summarize({ kind: 'transcript', text: 'x' }, { start: 0, end: 0 }, null), { name: 'NotesUnavailable' });
+test('summarize reports blocked or cut-off answers as NotesUnavailable', async () => {
+  const mk = (r) => createNotes({ cfg: { gemini: { apiKey: 'k', model: 'm' } }, http: { request: async () => r } });
+  await assert.rejects(mk({ promptFeedback: { blockReason: 'SAFETY' } }).summarize({ kind: 'transcript', text: 'x' }, { start: 0, end: 0 }, null), { name: 'NotesUnavailable' });
+  await assert.rejects(mk({ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: '{' }] } }] }).summarize({ kind: 'transcript', text: 'x' }, { start: 0, end: 0 }, null), { name: 'NotesUnavailable' });
+  await assert.rejects(createNotes({ cfg: { gemini: { apiKey: '', model: 'm' } }, http: {} }).summarize({ kind: 'transcript', text: 'x' }, { start: 0, end: 0 }, null), /GEMINI_API_KEY/);
 });
 
 test('zoom summary payload shapes', () => {

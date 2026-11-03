@@ -233,3 +233,13 @@ test('settings API requires a signed session', async (t) => {
   const c = await fetch(env.base + '/app/api/connect/zoom', { method: 'POST', headers: { Authorization: 'Bearer ' + token } }).then((x) => x.json());
   assert.match(c.url, /^https:\/\/zoom\.us\/oauth\/authorize\?/);
 });
+
+test('public pages are served', async (t) => {
+  const env = await setup();
+  t.after(() => env.server.close());
+  for (const [path, text] of [['/', 'Know who showed up'], ['/docs', 'How attendance is decided'], ['/support', 'mailto:'], ['/contact', 'mailto:'], ['/privacy', 'Limited Use'], ['/terms', 'Terms of Service']]) {
+    const r = await fetch(env.base + path);
+    assert.equal(r.status, 200, path);
+    assert.match(await r.text(), new RegExp(text), path);
+  }
+});

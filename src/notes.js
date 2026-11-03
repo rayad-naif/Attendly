@@ -1,41 +1,45 @@
 'use strict';
-/* Meeting notes: transcript or platform summary -> Claude -> structured notes ->
-   plain-text GHL contact note. Transcripts are never stored. */
-const Anthropic = require('@anthropic-ai/sdk');
+/* Meeting notes: transcript or platform summary -> Gemini (JSON output) ->
+   structured notes -> plain-text GHL contact note. Transcripts are never stored. */
 
+const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/models/';
+
+// Gemini responseSchema (OpenAPI subset). All fields required so the shape is predictable.
+const str = (description) => (description ? { type: 'STRING', description } : { type: 'STRING' });
+const strList = { type: 'ARRAY', items: { type: 'STRING' } };
 const NOTES_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['summary', 'key_points', 'decisions', 'action_items', 'next_step', 'attendees'],
+  type: 'OBJECT',
   properties: {
-    summary: { type: 'string', description: '3-5 sentence summary of the meeting.' },
-    key_points: { type: 'array', items: { type: 'string' } },
-    decisions: { type: 'array', items: { type: 'string' } },
+    summary: str('3-5 sentence summary of the meeting.'),
+    key_points: strList,
+    decisions: strList,
     action_items: {
-      type: 'array',
+      type: 'ARRAY',
       items: {
-        type: 'object', additionalProperties: false, required: ['owner', 'task', 'due'],
+        type: 'OBJECT',
         properties: {
-          owner: { type: 'string', description: 'Person or side responsible, e.g. the client name or "Us".' },
-          task: { type: 'string' },
-          due: { type: 'string', description: 'Due date as said in the meeting, or empty string.' }
-        }
+          owner: str('Person or side responsible, e.g. the client name or "Us".'),
+          task: str(),
+          due: str('Due date as said in the meeting, or empty string.')
+        },
+        required: ['owner', 'task', 'due'],
+        propertyOrdering: ['owner', 'task', 'due']
       }
     },
-    next_step: { type: 'string', description: 'The agreed next step, or empty string.' },
+    next_step: str('The agreed next step, or empty string.'),
     attendees: {
-      type: 'array',
+      type: 'ARRAY',
       description: 'Only when asked for per-attendee notes; otherwise an empty array.',
       items: {
-        type: 'object', additionalProperties: false, required: ['name', 'contributions', 'action_items'],
-        properties: {
-          name: { type: 'string', description: 'Exactly one of the attendee names provided.' },
-          contributions: { type: 'array', items: { type: 'string' } },
-          action_items: { type: 'array', items: { type: 'string' } }
-        }
+        type: 'OBJECT',
+        properties: { name: str('Exactly one of the attendee names provided.'), contributions: strList, action_items: strList },
+        required: ['name', 'contributions', 'action_items'],
+        propertyOrdering: ['name', 'contributions', 'action_items']
       }
     }
-  }
+  },
+  required: ['summary', 'key_points', 'decisions', 'action_items', 'next_step', 'attendees'],
+  propertyOrdering: ['summary', 'key_points', 'decisions', 'action_items', 'next_step', 'attendees']
 };
 
 const SYSTEM = [
@@ -50,9 +54,9 @@ class NotesUnavailable extends Error {
   constructor(message) { super(message); this.name = 'NotesUnavailable'; }
 }
 
-function createNotes({ cfg, client }) {
-  const c = cfg.claude;
-  const anthropic = client || (c.apiKey ? new Anthropic({ apiKey: c.apiKey, maxRetries: 2, timeout: 180000 }) : null);
+function createNotes({ cfg, http }) {
+  const g = cfg.gemini;
+  const enabled = !!(g.apiKey && http);
 
   /**
    * @param source   { kind: 'summary'|'transcript', text }
@@ -60,8 +64,8 @@ function createNotes({ cfg, client }) {
    * @param personal array of attendee names to break out, or null
    */
   async function summarize(source, meta, personal) {
-    if (!anthropic) throw new NotesUnavailable('ANTHROPIC_API_KEY is not set');
-    const lines = [
+    if (!enabled) throw new NotesUnavailable('GEMINI_API_KEY is not set');
+    const prompt = [
       'Meeting: ' + (meta.title || 'Meeting') + ' (' + meta.platform + ')',
       'Scheduled: ' + new Date(meta.start).toISOString() + ' to ' + new Date(meta.end).toISOString(),
       personal && personal.length
@@ -72,23 +76,30 @@ function createNotes({ cfg, client }) {
       '<source>',
       source.text,
       '</source>'
-    ];
-    const response = await anthropic.beta.messages.create({
-      model: c.model,
-      max_tokens: 16000,
-      system: SYSTEM,
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      output_config: { effort: c.effort, format: { type: 'json_schema', schema: NOTES_SCHEMA } },
-      messages: [{ role: 'user', content: lines.join('\n') }]
-    });
-    if (response.stop_reason === 'refusal') throw new NotesUnavailable('The model declined to summarize this meeting');
-    if (response.stop_reason === 'max_tokens') throw new NotesUnavailable('Summary was cut off (max_tokens)');
-    const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+    ].join('\n');
+    let r;
+    try {
+      r = await http.request(GEMINI_API + encodeURIComponent(g.model) + ':generateContent', {
+        method: 'POST', timeoutMs: 120000, retries: 2,
+        headers: { 'x-goog-api-key': g.apiKey },
+        json: {
+          systemInstruction: { parts: [{ text: SYSTEM }] },
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: 'application/json', responseSchema: NOTES_SCHEMA, maxOutputTokens: 8192 }
+        }
+      });
+    } catch (e) {
+      throw new NotesUnavailable('Gemini request failed: ' + e.message);
+    }
+    if (r && r.promptFeedback && r.promptFeedback.blockReason) throw new NotesUnavailable('Gemini blocked the request (' + r.promptFeedback.blockReason + ')');
+    const cand = r && r.candidates && r.candidates[0];
+    if (!cand) throw new NotesUnavailable('Gemini returned no answer');
+    if (cand.finishReason && cand.finishReason !== 'STOP') throw new NotesUnavailable('Gemini stopped early (' + cand.finishReason + ')');
+    const text = ((cand.content && cand.content.parts) || []).map((p) => p.text || '').join('');
     try { return JSON.parse(text); } catch (e) { throw new NotesUnavailable('Summary was not valid JSON'); }
   }
 
-  return { summarize, enabled: !!anthropic };
+  return { summarize, enabled };
 }
 
 /* ---------- formatting (GHL notes are plain text) ---------- */

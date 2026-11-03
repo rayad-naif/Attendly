@@ -9,6 +9,21 @@ A HighLevel Marketplace app (Target: **Sub-Account**). After each appointment he
 
 All business data lives in GHL. The app's MongoDB holds only encrypted OAuth tokens, the queue of meetings waiting to be checked, webhook de-duplication (48 h TTL) and a 20 MB capped log. It stays far below 256 MB: about 6 KB per location plus about 200 bytes per upcoming meeting.
 
+## URLs
+
+With your domain in place of `attendly.example.com`:
+
+| What | URL |
+| --- | --- |
+| Home, Docs, Support, Privacy, Terms | `/`, `/docs`, `/support`, `/privacy`, `/terms` |
+| HighLevel redirect (OAuth callback) | `/oauth/callback` |
+| HighLevel webhook | `/webhooks/ghl` |
+| HighLevel custom page (sidebar App URL, uses SSO) | `/app` |
+| Zoom redirect / event webhook | `/connect/zoom/callback`, `/webhooks/zoom` |
+| Microsoft redirect | `/connect/teams/callback` |
+| Google redirect | `/connect/meet/callback` |
+| Cron | `/api/cron/run` |
+
 ## How it works
 
 ```
@@ -18,7 +33,7 @@ GHL webhook (AppointmentCreate/Update/Delete)
 Cron every 5 min
   -> stage 1: re-read appointments from GHL, fetch participants from the platform,
      match them to contacts, set Showed / No-show, tags, fields, review tasks
-  -> stage 2: fetch the platform summary or transcript, summarise with Claude,
+  -> stage 2: fetch the platform summary or transcript, summarise with Gemini Flash,
      post a note to each attendee who showed, delete the job
 ```
 
@@ -77,9 +92,9 @@ Create a Google Cloud OAuth client (Web application) and enable the **Google Mee
 - Scope: `https://www.googleapis.com/auth/meetings.space.readonly`. This is a restricted scope: public use needs Google's OAuth verification and security assessment. Up to 100 test users work before verification.
 - Meet returns no emails for participants, so matching uses display names. Expect more review tasks than on Zoom or Teams.
 
-### 5. Claude API (meeting notes)
+### 5. Gemini API (meeting notes)
 
-Set `ANTHROPIC_API_KEY`. The default model is `claude-opus-5-5` at effort `medium`. Requests use structured JSON output and Anthropic's server-side refusal fallback (`fallbacks: "default"`). Without a key, notes contain attendance only.
+Create an API key in Google AI Studio and set `GEMINI_API_KEY`. The default model is `gemini-3.6-flash` (set `GEMINI_MODEL` to change it; check Google's model list for the current Flash ID). Notes use JSON-schema output. Without a key, notes contain attendance only.
 
 ### 6. Deploy on Vercel
 
