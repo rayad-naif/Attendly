@@ -80,7 +80,9 @@ function load(env = process.env) {
       supportEmail: env.SUPPORT_EMAIL || 'malikrayad110@gmail.com',
       legalName: env.LEGAL_NAME || 'Attendly',
       legalUpdated: env.LEGAL_UPDATED || 'November 3, 2026',
-      marketplaceUrl: env.MARKETPLACE_URL || ''
+      marketplaceUrl: env.MARKETPLACE_URL || '',
+      // Google Search Console ownership token (meta tag on every page).
+      googleSiteVerification: env.GOOGLE_SITE_VERIFICATION || 'EEsBF5Yi5Pu6nkh001vBZbke8JkOGE1naZzyVOAm56w'
     },
     // GHL's API docs give no maximum note length, so long notes are split into parts.
     noteMaxChars: Number(env.NOTE_MAX_CHARS || 4000),

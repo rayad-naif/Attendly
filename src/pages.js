@@ -70,7 +70,7 @@ function layout(cfg, { title, description, path, body }) {
   const nav = [['/', 'Home'], ['/docs', 'Docs'], ['/support', 'Support']];
   const install = cfg.brand.marketplaceUrl || '/docs#install';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(title)}</title><meta name="description" content="${esc(description)}"><meta name="theme-color" content="#070b14">
+<title>${esc(title)}</title><meta name="description" content="${esc(description)}"><meta name="theme-color" content="#070b14">${cfg.brand.googleSiteVerification ? `<meta name="google-site-verification" content="${esc(cfg.brand.googleSiteVerification)}">` : ''}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="icon" href="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#79a8ff"/><stop offset="1" stop-color="#72f0d1"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#g)"/><path d="M9 16.5l4.5 4.5L23 11" stroke="#081020" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>')}">
