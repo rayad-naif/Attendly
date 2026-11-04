@@ -348,3 +348,15 @@ test('free Zoom: booked contact who never joined is a No-show', async (t) => {
   await cron();
   assert.equal(w.appts.f2.appointmentStatus, 'noshow');
 });
+
+
+test('Zoom app_deauthorized deletes the user\'s Zoom connection and live events', async (t) => {
+  const env = await setup();
+  t.after(() => env.server.close());
+  await env.zoomHook(zoomEvent('meeting.participant_joined', { participant: { user_name: 'Coach', id: 'host1', join_time: '2026-11-02T18:00:00Z' } }));
+  assert.equal((await env.store.liveMeetings('zoom', '70000000001', 0, Date.now() * 2)).length, 1);
+  const r = await env.zoomHook({ event: 'app_deauthorized', event_ts: Date.now(), payload: { account_id: 'acc', user_id: 'host1', signature: 'x', deauthorization_time: new Date().toISOString(), client_id: 'z' } });
+  assert.equal(r.status, 200);
+  assert.equal((await env.store.getLocation('loc1')).connections.zoom, undefined);
+  assert.equal((await env.store.liveMeetings('zoom', '70000000001', 0, Date.now() * 2)).length, 0);
+});

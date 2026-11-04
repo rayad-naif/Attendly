@@ -117,7 +117,11 @@ function createApp(cfg, deps = {}) {
     if (!safeEqual(expected, req.headers['x-zm-signature'] || '')) return res.status(401).end();
     if (Math.abs(Date.now() - Number(ts)) > 15 * 60 * 1000) return res.status(400).json({ error: 'stale' });
     if (await store.seen('zoom:' + nodeCrypto.createHash('sha256').update(raw).digest('hex'))) return res.json({ ok: true, duplicate: true });
-    if (evt.event === 'app_deauthorized') await store.log(null, 'zoom_deauthorized', (evt.payload && evt.payload.user_id) || '');
+    if (evt.event === 'app_deauthorized') {
+      // Zoom requires deleting the user's data when they remove the app.
+      const n = await store.removeZoomUser((evt.payload && evt.payload.user_id) || '');
+      await store.log(null, 'zoom_deauthorized', 'removed ' + n + ' connection(s)');
+    }
     // Live join/leave events: kept only for hosts who connected Zoom to this app.
     const rec = zoomLiveRecord(evt);
     if (rec && (await store.isZoomUserConnected(rec.hostId))) await store.addLiveEvent(rec);

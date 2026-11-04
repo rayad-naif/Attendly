@@ -78,6 +78,15 @@ function createMemoryStore() {
     async liveMeetings(provider, meetingId, from, to) {
       return [...live.values()].filter((d) => d.provider === provider && d.meetingId === meetingId && d.startTime >= from && d.startTime <= to).map(copy);
     },
+    /* Zoom app_deauthorized: drop that user's tokens everywhere and their live events. */
+    async removeZoomUser(userId) {
+      let n = 0;
+      for (const l of locations.values()) {
+        if (l.connections && l.connections.zoom && l.connections.zoom.account && l.connections.zoom.account.id === userId) { delete l.connections.zoom; n++; }
+      }
+      for (const [k, d] of live) if (d.provider === 'zoom' && d.hostId === userId) live.delete(k);
+      return n;
+    },
     async isZoomUserConnected(userId) {
       if (!userId) return false;
       for (const l of locations.values()) if (l.connections && l.connections.zoom && l.connections.zoom.account && l.connections.zoom.account.id === userId) return true;
