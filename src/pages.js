@@ -286,6 +286,7 @@ function privacy(cfg) {
 
 <h2>What we store</h2>
 <ul><li><b>OAuth access and refresh tokens</b> for HighLevel and connected platforms, encrypted with AES-256-GCM, kept until you uninstall or disconnect.</li>
+<li><b>Meeting join and leave events</b> sent by Zoom while a meeting runs (participant name, email if provided, join and leave times), only for meetings hosted by a connected account, automatically deleted after 3 days.</li>
 <li><b>A short queue of upcoming meetings</b> (appointment IDs and times only), deleted once each meeting is processed.</li>
 <li><b>Technical logs</b> (event type, sub-account ID, short messages, no transcript content), kept in a fixed-size log that overwrites old entries.</li></ul>
 <p>Attendance results, notes, tags, tasks and settings are stored in your HighLevel account, under your control.</p>
@@ -303,6 +304,7 @@ function privacy(cfg) {
 
 <h2>Your choices and deletion</h2>
 <ul><li><b>Disconnect a platform</b> on the app page: its tokens are deleted and revoked where the platform allows.</li>
+<li><b>Remove ${n} from your Zoom account</b> (Zoom App Marketplace → Manage → Added Apps): its Zoom tokens and stored join/leave events are deleted immediately.</li>
 <li><b>Uninstall the app</b> in HighLevel: the sub-account's tokens and queued meetings are deleted.</li>
 <li>Notes, tags and fields already written stay in your HighLevel account; you can edit or delete them there.</li>
 <li>To request deletion or a copy of the data we hold, email <a href="mailto:${email}">${email}</a>.</li></ul>

@@ -126,6 +126,13 @@ function createMongoStore(uri, dbName) {
     async liveMeetings(provider, meetingId, from, to) {
       return (await col('live')).find({ provider, meetingId, startTime: { $gte: from, $lte: to } }).toArray();
     },
+    /* Zoom app_deauthorized: drop that user's tokens everywhere and their live events. */
+    async removeZoomUser(userId) {
+      if (!userId) return 0;
+      const r = await (await col('locations')).updateMany({ 'connections.zoom.account.id': userId }, { $unset: { 'connections.zoom': '' } });
+      await (await col('live')).deleteMany({ provider: 'zoom', hostId: userId });
+      return r.modifiedCount || 0;
+    },
     async isZoomUserConnected(userId) {
       if (!userId) return false;
       return !!(await (await col('locations')).findOne({ 'connections.zoom.account.id': userId }, { projection: { _id: 1 } }));
